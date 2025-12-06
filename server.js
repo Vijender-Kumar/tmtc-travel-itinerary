@@ -34,8 +34,11 @@ connectDB();
 // });
 
 //For DockerFile Connectionf of REDIS
+// const client = redis.createClient({
+//   url: 'redis://redis:6379'
+// });
 const client = redis.createClient({
-  url: 'redis://redis:6379'
+  url: process.env.REDIS_URL
 });
 
 

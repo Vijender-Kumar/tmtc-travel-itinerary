@@ -39,6 +39,7 @@ PORT=4001
 DB_URI=<Your MongoDB Atlas URI>
 SECRET_KEY=<Your Secret Key>
 ENVIRONMENT=sandbox
+REDIS_URL="redis://redis:6379"
 MAIL_CONFIG_HOST=smtp.gmail.com
 MAIL_CONFIG_PORT=587
 MAIL_FROM_NAME="TMTC Travel Itinerary"
