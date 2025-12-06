@@ -1,30 +1,35 @@
 const genericMails = (type, data) => {
   switch (type) {
     case "sendItinerary":
+      const formatDate = (date) => {
+        try { return new Date(date).toDateString(); }
+        catch { return date; }
+      };
+
       return `
-        <div>
-            Hi ${data.username}, <br><br>
-            Your TMTC Travel Itinerary has been created.<br><br>
+    <div>
+        Hi ${data.username}, <br>
+        Your TMTC Travel Itinerary has been created.<br><br>
 
-            <b>Title:</b> ${data.title}<br>
-            ${data.destination ? `<b>Destination:</b> ${data.destination}<br>` : ""}
-            <b>Start Date:</b> ${data.startDate}<br>
-            <b>End Date:</b> ${data.endDate}<br>
+        <b>Title:</b> ${data.title}<br>
+        ${data.destination ? `<b>Destination:</b> ${data.destination}<br>` : ""}
+        <b>Start Date:</b> ${formatDate(data.startDate)}<br>
+        <b>End Date:</b> ${formatDate(data.endDate)}<br>
 
-            ${
-                data.activities && data.activities.length > 0 
-                ? `<br><b>Activities:</b><br>
-                   <ul>
-                       ${data.activities.map(a => `<li>${a}</li>`).join("")}
-                   </ul>`
-                : ""
-            }
-            <br>
-            Enjoy your trip!!<br><br>
+        ${data.activities && data.activities.length > 0
+          ? `<br><b>Activities:</b><br>
+               <ul>
+                   ${data.activities.map(a => `<li> ${a.description}${a.location ? ` (${a.location})` : ""}</li>`).join("")}
+               </ul>`
+          : ""
+        }
+        <br>
+        Enjoy your trip!!<br><br>
 
-            Regards,<br>
-            <b>TMTC Travel Itinerary Pvt Ltd.</b>
-        </div>`;
+        Regards,<br>
+        <b>TMTC Travel Itinerary Pvt Ltd.</b>
+    </div>`;
+
     // For future Reference
     // case "registerUser":
     //   return `<div>Hi ${data.username},<br><br>

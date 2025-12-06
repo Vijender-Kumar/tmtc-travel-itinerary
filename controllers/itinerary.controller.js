@@ -40,8 +40,8 @@ module.exports = function (app) {
                 title: saved.title,
                 destination: saved.destination,
                 startDate: saved.startDate,
-                endDate: saved.endDate
-                
+                endDate: saved.endDate,
+                activities: saved.activities
             });
 
             const mailResp = await service.sendMail(data.email, subject, html);
@@ -55,7 +55,8 @@ module.exports = function (app) {
                 message: "Itinerary created",
                 data: {
                     title: saved.title,
-                    destination: saved.destination
+                    destination: saved.destination,
+                    dataId: saved._id
                 }
             });
 

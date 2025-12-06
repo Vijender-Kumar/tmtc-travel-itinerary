@@ -86,3 +86,9 @@ npm run server
 docker-compose down
 docker-compose build --no-cache
 docker-compose up
+
+###RUNNING THE TEST
+##RUN THE CODE in LOCAL or in DOCKER
+##Open NEW Terminal
+#Run the command
+npm test
