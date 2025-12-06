@@ -11,7 +11,7 @@ const isFutureDate = (date) => {
 
 // startDate < endDate
 const isStartBeforeEnd = (startDate, endDate) => {
-  return new Date(startDate) < new Date(endDate);
+  return new Date(startDate) <= new Date(endDate);
 };
 
 // Validate activities array

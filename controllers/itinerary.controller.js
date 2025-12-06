@@ -7,17 +7,27 @@ var mongoose = require("mongoose");
 const { redisClient } = require("../server");
 const mails = require("../services/mail/genericMails.js");
 const service = require("../services/mail.js");
+const ReqResLogs = require("../models/reqResLogs.model.js");
 
 module.exports = function (app) {
 
-    // Create new itinerary
     app.post("/api/itineraries", rateLimiter, async function (req, res) {
+        let logData = {
+            requestFrom: "itinerary",
+            requestBody: req.body,
+            environment: process.env.ENVIRONMENT,
+            responseSuccess: false,
+        };
         try {
             const token = req.headers.authorization;
-            if (!token) return res.status(401).send({ message: "Token missing", success: false });
+            if (!token) {
+                return res.status(401).send({ message: "Token missing", success: false });
+            }
 
             const decoded = verifyToken(token);
-            if (decoded.error) return res.status(400).send({ message: decoded.error, success: false });
+            if (decoded.error) {
+                return res.status(400).send({ message: decoded.error, success: false });
+            }
 
             const data = {
                 userId: decoded.data?.id,
@@ -29,8 +39,12 @@ module.exports = function (app) {
                 activities: req.body.activities || []
             };
 
+            logData.email = data.email;
             const errors = validateItineraryDates(data);
-            if (errors.length > 0) return res.status(400).send({ errors });
+            if (errors.length > 0) {
+                await ReqResLogs.create(logData);
+                return res.status(400).send({ errors });
+            }
 
             const saved = await Itinerary.addOne(data);
 
@@ -47,17 +61,16 @@ module.exports = function (app) {
             const mailResp = await service.sendMail(data.email, subject, html);
 
             if (!mailResp.messageId) {
-                throw { success: false, message: "User added, but error while sending mail." };
+                throw { success: false, message: "Itinerary added, but error while sending mail." };
             }
+
+            logData.responseSuccess = true;
+            await ReqResLogs.create(logData);
 
             return res.send({
                 success: true,
                 message: "Itinerary created",
-                data: {
-                    title: saved.title,
-                    destination: saved.destination,
-                    dataId: saved._id
-                }
+                data: { title: saved.title, destination: saved.destination, dataId: saved._id }
             });
 
         } catch (error) {
@@ -71,8 +84,6 @@ module.exports = function (app) {
         }
     });
 
-
-    // Get all itineraries (with filters + pagination)
     app.get("/api/itineraries", rateLimiter, async function (req, res) {
         try {
             const filter = {};
@@ -95,88 +106,110 @@ module.exports = function (app) {
         }
     });
 
-    // Get itinerary by ID
     app.get("/api/itineraries/:id", rateLimiter, async function (req, res) {
+        let logData = {
+            requestFrom: "itinerary",
+            requestBody: req.params,
+            environment: process.env.ENVIRONMENT,
+            responseSuccess: false,
+        };
         try {
             const token = req.headers.authorization;
-            if (!token) return res.status(401).send({ message: "Token missing", success: false });
+            if (!token) {
+                return res.status(401).send({ message: "Token missing", success: false });
+            }
 
             const decoded = verifyToken(token);
-            if (decoded.error) return res.status(400).send({ message: decoded.error });
+            if (decoded.error) {
+                return res.status(400).send({ message: decoded.error });
+            }
 
+            logData.email = decoded.data?.email;
             const itineraryId = req.params.id;
             if (!mongoose.Types.ObjectId.isValid(itineraryId)) {
+                await ReqResLogs.create(logData);
                 return res.status(400).send({ message: "Invalid itinerary ID", success: false });
             }
 
-            // Check Redis cache first
             if (redisClient && redisClient.status === "ready") {
                 try {
                     const cacheKey = `itinerary:${itineraryId}`;
                     const cached = await redisClient.get(cacheKey);
-
                     if (cached) {
+                        logData.responseSuccess = true;
+                        await ReqResLogs.create(logData);
                         return res.send({ success: true, data: JSON.parse(cached) });
                     }
-                } catch (e) {
-                    console.log("Redis fetch error:", e.message);
-                }
+                } catch (e) { }
             }
 
             const itinerary = await Itinerary.findById(new mongoose.Types.ObjectId(itineraryId));
-            if (!itinerary) return res.status(404).send({ message: "Itinerary not found", success: false });
+            if (!itinerary) {
+                await ReqResLogs.create(logData);
+                return res.status(404).send({ message: "Itinerary not found", success: false });
+            }
 
             if (itinerary.userId.toString() !== decoded.data?.id) {
+                await ReqResLogs.create(logData);
                 return res.status(403).send({ message: "Forbidden: Not your itinerary", success: false });
             }
-            // remove fields before sending
+
             const { _id, title, destination, startDate, endDate, activities } = itinerary.toObject();
             const responseData = { _id, title, destination, startDate, endDate, activities };
 
-            // Set cache for 5 minutes (300 seconds)
             if (redisClient && redisClient.status === "ready") {
                 try {
-                    await redisClient.setEx(cacheKey, 300, JSON.stringify(responseData));
-                } catch (e) {
-                    console.log("Redis save error:", e.message);
-                }
+                    await redisClient.setEx(`itinerary:${itineraryId}`, 300, JSON.stringify(responseData));
+                } catch (e) { }
             }
 
-            return res.send({
-                success: true,
-                data: responseData
-            });
+            logData.responseSuccess = true;
+            await ReqResLogs.create(logData);
+
+            return res.send({ success: true, data: responseData });
         } catch (err) {
             return res.status(500).send(err);
         }
     });
 
-    // Update itinerary
     app.put("/api/itineraries/:id", rateLimiter, async function (req, res) {
+        let logData = {
+            requestFrom: "itinerary",
+            requestBody: req.body,
+            environment: process.env.ENVIRONMENT,
+            responseSuccess: false,
+        };
         try {
             const token = req.headers.authorization;
-            if (!token)
+            if (!token) {
                 return res.status(401).send({ message: "Token missing", success: false });
+            }
 
             const decoded = verifyToken(token);
-
             const itineraryId = req.params.id;
+            logData.email = decoded.data?.email;
 
             if (!mongoose.Types.ObjectId.isValid(itineraryId)) {
+                await ReqResLogs.create(logData);
                 return res.status(400).send({ message: "Invalid itinerary ID", success: false });
             }
 
             const itinerary = await Itinerary.findById(itineraryId);
-            if (!itinerary)
+            if (!itinerary) {
+                await ReqResLogs.create(logData);
                 return res.status(404).send({ message: "Not found", success: false });
+            }
 
             if (itinerary.userId.toString() !== decoded.data?.id) {
+                await ReqResLogs.create(logData);
                 return res.status(403).send({ message: "Not allowed", success: false });
             }
 
             const errors = validateItineraryDates(req.body);
-            if (errors.length > 0)
+            if (errors.length > 0) {
+                await ReqResLogs.create(logData);
                 return res.status(400).send({ errors, success: false });
+            }
 
             const exists = await Itinerary.findOne({
                 userId: decoded.data?.id,
@@ -186,89 +219,115 @@ module.exports = function (app) {
             });
 
             if (exists) {
-                return res.status(409).send({
-                    message: "Itinerary already exists",
-                    success: false,
-                });
+                await ReqResLogs.create(logData);
+                return res.status(409).send({ message: "Itinerary already exists", success: false });
             }
 
             const updated = await Itinerary.updateOne(itineraryId, req.body);
 
-            // Clear Redis cache after update
-            const cacheKey = `itinerary:${itineraryId}`;
-            await redisClient.del(cacheKey);
+            if (redisClient && redisClient.status === "ready") {
+                try {
+                    await redisClient.del(`itinerary:${itineraryId}`);
+                } catch (e) { }
+            }
 
-            // remove fields before sending
             const { _id, title, destination, startDate, endDate, activities } = updated.toObject();
+
+            logData.responseSuccess = true;
+            await ReqResLogs.create(logData);
+
             return res.send({
-                success: true, message: "Updated", data: {
-                    _id,
-                    title,
-                    destination,
-                    startDate,
-                    endDate,
-                    activities
-                }
+                success: true,
+                message: "Updated",
+                data: { _id, title, destination, startDate, endDate, activities }
             });
 
         } catch (err) {
-            return res.status(400).send({
-                message: err.message,
-                success: false
-            });
+            return res.status(400).send({ message: err.message, success: false });
         }
     });
 
-    // Delete itinerary
     app.delete("/api/itineraries/:id", rateLimiter, async function (req, res) {
+        let logData = {
+            requestFrom: "itinerary",
+            requestBody: req.params,
+            environment: process.env.ENVIRONMENT,
+            responseSuccess: false,
+        };
         try {
             const token = req.headers.authorization;
-            if (!token) return res.status(401).send({ message: "Token missing", success: false });
+            if (!token) {
+                return res.status(401).send({ message: "Token missing", success: false });
+            }
 
             const decoded = verifyToken(token);
-
             const itineraryId = req.params.id;
+            logData.email = decoded.data?.email;
+
             if (!mongoose.Types.ObjectId.isValid(itineraryId)) {
                 return res.status(400).send({ message: "Invalid itinerary ID", success: false });
             }
 
             const itinerary = await Itinerary.findById(itineraryId);
-            if (!itinerary) return res.status(404).send({ message: "Not found", success: false });
+            if (!itinerary) {
+                return res.status(404).send({ message: "Not found", success: false });
+            }
 
-            if (itinerary.userId.toString() !== decoded.data?.id)
+            if (itinerary.userId.toString() !== decoded.data?.id) {
                 return res.status(403).send({ message: "Not allowed", success: false });
+            }
 
             await Itinerary.deleteOne(itineraryId);
+            if (redisClient && redisClient.status === "ready") {
+                try {
+                    await redisClient.del(`itinerary:${itineraryId}`);
+                } catch (e) { }
+            }
 
-            // Clear Redis cache after delete
-            const cacheKey = `itinerary:${itineraryId}`;
-            await redisClient.del(cacheKey);
+            logData.responseSuccess = true;
+            await ReqResLogs.create(logData);
 
             return res.send({ success: true, message: "Deleted successfully" });
 
         } catch (err) {
+            logData.responseSuccess = false;
+            await ReqResLogs.create(logData);
             return res.status(400).send(err);
         }
     });
 
-    // Generate shareable link
     app.post("/api/itineraries/:id/share", rateLimiter, async function (req, res) {
+        let logData = {
+            requestFrom: "itinerary",
+            requestBody: req.body,
+            environment: process.env.ENVIRONMENT,
+            responseSuccess: false,
+        };
         try {
             const token = req.headers.authorization;
-            if (!token) return res.status(401).send({ success: false, message: "Token missing" });
+            if (!token) {
+                return res.status(401).send({ success: false, message: "Token missing" });
+            }
 
             const decoded = verifyToken(token);
-            if (decoded.error)
+            if (decoded.error) {
                 return res.status(400).send({ success: false, message: decoded.error });
+            }
+            logData.email = decoded.data?.email;
 
             const itinerary = await Itinerary.findById(req.params.id);
-            if (!itinerary)
+            if (!itinerary) {
                 return res.status(404).send({ success: false, message: "Itinerary not found" });
+            }
 
-            if (itinerary.userId.toString() !== decoded.data?.id)
+            if (itinerary.userId.toString() !== decoded.data?.id) {
                 return res.status(403).send({ success: false, message: "Not allowed" });
+            }
 
             const shared = await Itinerary.generateShareId(req.params.id);
+
+            logData.responseSuccess = true;
+            await ReqResLogs.create(logData);
 
             return res.send({
                 success: true,
@@ -284,15 +343,25 @@ module.exports = function (app) {
         }
     });
 
-    // Public itinerary access using share link (no login)
     app.get("/api/itineraries/share/:shareableId", rateLimiter, async function (req, res) {
+        let logData = {
+            requestFrom: "itinerary",
+            requestBody: req.params,
+            environment: process.env.ENVIRONMENT,
+            responseSuccess: false,
+            email: "public"
+        };
         try {
             const shareableId = req.params.shareableId;
-
             const itinerary = await Itinerary.findByShareId(shareableId);
 
-            if (!itinerary)
+            if (!itinerary) {
+                await ReqResLogs.create(logData);
                 return res.status(404).send({ success: false, message: "Invalid or expired link" });
+            }
+
+            logData.responseSuccess = true;
+            await ReqResLogs.create(logData);
 
             return res.send({
                 success: true,
@@ -307,6 +376,8 @@ module.exports = function (app) {
             });
 
         } catch (error) {
+            logData.responseSuccess = false;
+            await ReqResLogs.create(logData);
             return res.status(500).send({ success: false, message: "Server error", error });
         }
     });

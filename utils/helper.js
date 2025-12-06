@@ -15,7 +15,7 @@ const comparePassword = async (userPassword, hash) => {
 // Rate Limiter - in Future It can be taken form the .env file as well
 const rateLimiter = rateLimit({
     windowMs: 1 * 60 * 1000,
-    max: 15, 
+    max: 50, 
     message: {
         success: false,
         message: "Too many requests. Try again in 1 minute."
