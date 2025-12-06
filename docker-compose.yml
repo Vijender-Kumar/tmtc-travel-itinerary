@@ -1,0 +1,31 @@
+version: "3.9"
+
+services:
+  api:
+    container_name: tmtc-travel-itinerary
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: always
+    ports:
+      - "4001:4001"
+    env_file:
+      - .env
+    depends_on:
+      - redis
+    networks:
+      - app-net
+
+  redis:
+    container_name: tmtc-travel-redis
+    image: redis:latest
+    restart: always
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--appendonly", "yes"]
+    networks:
+      - app-net
+
+networks:
+  app-net:
+    driver: bridge

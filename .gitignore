@@ -1,0 +1,54 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Dependency directories
+node_modules/
+package-lock.json
+
+# Optional npm cache directory
+.npm
+
+# dotenv files
+.env
+.env.*
+.env.local
+.env.test
+.env.production
+.env.development
+
+# build outputs
+build/
+dist/
+
+# Docker
+# docker-data/
+# Dockerfile
+
+# Mac
+.DS_Store
+
+# IDE / Editor
+.idea/
+.vscode/
+*.swp
+
+# Coverage
+coverage/
+
+# Temp files
+*.tmp
+*.temp
+
+# Typescript
+*.tsbuildinfo
