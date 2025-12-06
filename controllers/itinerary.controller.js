@@ -98,7 +98,6 @@ module.exports = function (app) {
     // Get itinerary by ID
     app.get("/api/itineraries/:id", rateLimiter, async function (req, res) {
         try {
-            console.log("herere")
             const token = req.headers.authorization;
             if (!token) return res.status(401).send({ message: "Token missing", success: false });
 
@@ -111,10 +110,18 @@ module.exports = function (app) {
             }
 
             // Check Redis cache first
-            const cacheKey = `itinerary:${itineraryId}`;
-            const cached = await redisClient.get(cacheKey);
-            console.log("this is CacheD:::", cached)
-            if (cached) return res.send({ success: true, data: JSON.parse(cached) });
+            if (redisClient && redisClient.status === "ready") {
+                try {
+                    const cacheKey = `itinerary:${itineraryId}`;
+                    const cached = await redisClient.get(cacheKey);
+
+                    if (cached) {
+                        return res.send({ success: true, data: JSON.parse(cached) });
+                    }
+                } catch (e) {
+                    console.log("Redis fetch error:", e.message);
+                }
+            }
 
             const itinerary = await Itinerary.findById(new mongoose.Types.ObjectId(itineraryId));
             if (!itinerary) return res.status(404).send({ message: "Itinerary not found", success: false });
@@ -127,14 +134,19 @@ module.exports = function (app) {
             const responseData = { _id, title, destination, startDate, endDate, activities };
 
             // Set cache for 5 minutes (300 seconds)
-            await redisClient.setEx(cacheKey, 300, JSON.stringify(responseData));
+            if (redisClient && redisClient.status === "ready") {
+                try {
+                    await redisClient.setEx(cacheKey, 300, JSON.stringify(responseData));
+                } catch (e) {
+                    console.log("Redis save error:", e.message);
+                }
+            }
 
             return res.send({
                 success: true,
                 data: responseData
             });
         } catch (err) {
-            console.log("thisis hte ERROR", err)
             return res.status(500).send(err);
         }
     });
@@ -265,7 +277,7 @@ module.exports = function (app) {
             });
 
         } catch (error) {
-            if(error.name === "CastError"){
+            if (error.name === "CastError") {
                 return res.status(404).send({ success: false, message: "Itinerary Id not found" });
             }
             return res.status(500).send({ success: false, message: "Server error", error });
