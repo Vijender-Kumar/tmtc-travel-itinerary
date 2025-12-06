@@ -48,21 +48,21 @@ module.exports = function (app) {
 
             const saved = await Itinerary.addOne(data);
 
-            const subject = "TMTC Travel Itinerary created";
-            const html = mails.genericMails("sendItinerary", {
-                username: decoded.data?.email?.split("@")[0],
-                title: saved.title,
-                destination: saved.destination,
-                startDate: saved.startDate,
-                endDate: saved.endDate,
-                activities: saved.activities
-            });
+            // const subject = "TMTC Travel Itinerary created";
+            // const html = mails.genericMails("sendItinerary", {
+            //     username: decoded.data?.email?.split("@")[0],
+            //     title: saved.title,
+            //     destination: saved.destination,
+            //     startDate: saved.startDate,
+            //     endDate: saved.endDate,
+            //     activities: saved.activities
+            // });
 
-            const mailResp = await service.sendMail(data.email, subject, html);
+            // const mailResp = await service.sendMail(data.email, subject, html);
 
-            if (!mailResp.messageId) {
-                throw { success: false, message: "Itinerary added, but error while sending mail." };
-            }
+            // if (!mailResp.messageId) {
+            //     throw { success: false, message: "Itinerary added, but error while sending mail." };
+            // }
 
             logData.responseSuccess = true;
             await ReqResLogs.create(logData);
