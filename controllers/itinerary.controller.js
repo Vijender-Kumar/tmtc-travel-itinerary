@@ -296,7 +296,7 @@ module.exports = function (app) {
         }
     });
 
-    app.post("/api/itineraries/:id/share", rateLimiter, async function (req, res) {
+    app.post("/api/itineraries/share/:id", rateLimiter, async function (req, res) {
         let logData = {
             requestFrom: "itinerary",
             requestBody: req.body,
